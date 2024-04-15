@@ -1,10 +1,9 @@
 FROM amake/wine:buster as inno
-MAINTAINER Aaron Madlon-Kay <aaron@madlon-kay.com>
 
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends procps xvfb \
+    && apt-get install -y --no-install-recommends procps xvfb unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # get at least error information from wine
@@ -13,7 +12,7 @@ ENV WINEDEBUG -all,err+all
 # Run virtual X buffer on this port
 ENV DISPLAY :99
 
-COPY opt /opt
+COPY opt/bin/ /opt/bin
 ENV PATH $PATH:/opt/bin
 
 USER xclient
@@ -34,6 +33,18 @@ RUN curl -SL "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe" -o is.exe \
 RUN cd "/home/xclient/.wine/drive_c/Program Files/Inno Setup 6/Languages" \
     && curl -L "https://api.github.com/repos/jrsoftware/issrc/tarball/is-6_2_2" \
     | tar xz --strip-components=4 --wildcards "*/Files/Languages/Unofficial/*.isl"
+
+# Install osssigncode in wine
+
+USER root
+RUN mkdir /opt/osslsigncode
+RUN curl -SL "https://sourceforge.net/projects/unix-utils/files/osslsigncode/osslsigncode-1.7.1-1-win32.zip/download" -o osslsigncode.zip \
+    && unzip osslsigncode.zip -d /opt/osslsigncode
+
+# # Install mono
+# RUN curl -SL "https://download.mono-project.com/archive/6.12.0/windows-installer/mono-6.12.0.206-gtksharp-2.12.45-win32-0.msi" -o mono.msi \
+#     && wine-x11-run wine msiexec /i mono.msi /quiet /qn \
+#     && rm mono.msi
 
 FROM debian:buster-slim
 
@@ -61,6 +72,7 @@ COPY opt /opt
 ENV PATH $PATH:/opt/bin
 
 COPY --chown=xclient:xusers --from=inno /home/xclient/.wine /home/xclient/.wine
+COPY --chown=xclient:xusers --from=inno /opt/osslsigncode/osslsigncode-1.7.1-1-win32/bin /opt/osslsigncode
 RUN mkdir /work && chown xclient:xusers -R /work
 
 # Wine really doesn't like to be run as root, so let's use a non-root user
